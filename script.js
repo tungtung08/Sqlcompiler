@@ -23,7 +23,7 @@ initSql();
 // Run Query Button Event
 document.getElementById('run-btn').addEventListener('click', () => {
     const queryInput = document.getElementById('sql-input');
-    let query = queryInput.value.trim();
+    let query = queryInput.value.trim(); // const ki jagah let kiya hai taaki DESC change ho sake
     const outputBox = document.getElementById('output-box');
 
     if (!query) {
@@ -36,7 +36,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
         return;
     }
 
-    // --- DESC / DESCRIBE FIX FOR SQLITE ---
+    // --- SAFE DESC / DESCRIBE FIX FOR SQLITE ---
     const upperQuery = query.toUpperCase();
     if (upperQuery.startsWith('DESC ') || upperQuery.startsWith('DESCRIBE ')) {
         const parts = query.trim().split(/\s+/);
@@ -45,7 +45,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
             query = `PRAGMA table_info(${tableName});`;
         }
     }
-    // -------------------------------------
+    // -------------------------------------------
 
     try {
         // Run SQL query
@@ -59,6 +59,7 @@ document.getElementById('run-btn').addEventListener('click', () => {
         queryInput.value = '';
 
         if (results.length === 0) {
+            // Detailed success popup for DDL/DML queries (CREATE, INSERT, UPDATE, etc.)
             showPopup("Query Success", "✔ Query executed successfully! Database updated.", false);
             outputBox.innerHTML = `<p style="color: #4CAF50; font-weight: bold;">✔ Query executed successfully!</p>`;
             return;
@@ -70,9 +71,10 @@ document.getElementById('run-btn').addEventListener('click', () => {
             totalRows += res.values.length;
         });
 
+        // Detailed success popup for SELECT queries
         showPopup("Query Success", `✔ Query executed successfully! Total ${totalRows} row(s) returned.`, false);
 
-        // Render Table Output for SELECT / DESC queries
+        // Render Table Output for SELECT queries
         let htmlOutput = '';
         results.forEach(res => {
             htmlOutput += '<table><thead><tr>';
