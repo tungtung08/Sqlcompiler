@@ -1,122 +1,151 @@
-let db = null;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.sql.*;
 
-// Initialize SQL engine & load saved database if exists
-async function initSql() {
-    try {
-        const SQL = await initSqlJs({
-            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
-        });
+public class SqlConsoleApp extends JFrame {
+    private JTextArea queryInput;
+    private JTable outputTable;
+    private DefaultTableModel tableModel;
 
-        const savedDb = localStorage.getItem('sql_db');
-        if (savedDb) {
-            const uInt8Array = Uint8Array.from(JSON.parse(savedDb));
-            db = new SQL.Database(uInt8Array);
-        } else {
-            db = new SQL.Database();
-        }
-    } catch (err) {
-        showPopup("Initialization Error", "Failed to load SQL engine: " + err.message, true);
-    }
-}
-initSql();
+    // Apne MySQL database ki details yahan bharein
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/your_database_name";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "your_password";
 
-// Run Query Button Event
-document.getElementById('run-btn').addEventListener('click', () => {
-    const queryInput = document.getElementById('sql-input');
-    const query = queryInput.value.trim();
-    const outputBox = document.getElementById('output-box');
+    public SqlConsoleApp() {
+        setTitle("Java MySQL Console (A to Z Query Runner)");
+        setSize(900, 650);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout(10, 10));
 
-    if (!query) {
-        showPopup("Warning", "Please enter an SQL query before running.", true);
-        return;
-    }
-
-    if (!db) {
-        showPopup("Please Wait", "Database is still initializing. Try again in a moment.", true);
-        return;
-    }
-
-    try {
-        // Run SQL query
-        const results = db.exec(query);
+        // --- Top Panel (Query Input) ---
+        JPanel topPanel = new JPanel(new BorderLayout(5, 5));
+        topPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 0, 15));
         
-        // Save database state to localStorage so tables/data aren't lost
-        const data = db.export();
-        localStorage.setItem('sql_db', JSON.stringify(Array.from(data)));
+        JLabel label = new JLabel("Enter SQL Query (CREATE, INSERT, SELECT, DESC, UPDATE, DROP, etc.):");
+        label.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        topPanel.add(label, BorderLayout.NORTH);
 
-        // Query run hote hi textarea instant clear ho jayega
-        queryInput.value = '';
+        queryInput = new JTextArea(6, 20);
+        queryInput.setFont(new Font("Consolas", Font.PLAIN, 14));
+        queryInput.setLineWrap(true);
+        JScrollPane scrollPane = new JScrollPane(queryInput);
+        topPanel.add(scrollPane, BorderLayout.CENTER);
 
-        if (results.length === 0) {
-            // Detailed success popup for DDL/DML queries (CREATE, INSERT, UPDATE, etc.)
-            showPopup("Query Success", "✔ Query executed successfully! Database updated.", false);
-            outputBox.innerHTML = `<p style="color: #4CAF50; font-weight: bold;">✔ Query executed successfully!</p>`;
+        // Buttons Panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        JButton runButton = new JButton("Run Query");
+        runButton.setBackground(new Color(76, 175, 80));
+        runButton.setForeground(Color.WHITE);
+        runButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
+        JButton clearButton = new JButton("Clear Editor");
+        clearButton.setBackground(new Color(100, 100, 100));
+        clearButton.setForeground(Color.WHITE);
+        clearButton.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
+        buttonPanel.add(runButton);
+        buttonPanel.add(clearButton);
+        topPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        add(topPanel, BorderLayout.NORTH);
+
+        // --- Center Panel (Output Table) ---
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setBorder(BorderFactory.createEmptyBorder(0, 15, 15, 15));
+        
+        JLabel outputLabel = new JLabel("Query Output:");
+        outputLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        centerPanel.add(outputLabel, BorderLayout.NORTH);
+
+        tableModel = new DefaultTableModel();
+        outputTable = new JTable(tableModel);
+        outputTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        outputTable.setRowHeight(24);
+        JScrollPane tableScroll = new JScrollPane(outputTable);
+        centerPanel.add(tableScroll, BorderLayout.CENTER);
+
+        add(centerPanel, BorderLayout.CENTER);
+
+        // --- Event Listeners ---
+        runButton.addActionListener(e -> executeQuery());
+        clearButton.addActionListener(e -> queryInput.setText(""));
+    }
+
+    private void executeQuery() {
+        String query = queryInput.getText().trim();
+
+        if (query.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter an SQL query before running.", "Warning", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
-        // Calculate total rows returned for detailed popup message
-        let totalRows = 0;
-        results.forEach(res => {
-            totalRows += res.values.length;
-        });
+        // Query run hote hi text area turant erase (clear) ho jayega
+        queryInput.setText("");
 
-        // Detailed success popup for SELECT queries
-        showPopup("Query Success", `✔ Query executed successfully! Total ${totalRows} row(s) returned.`, false);
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
+             Statement stmt = conn.createStatement()) {
 
-        // Render Table Output for SELECT queries
-        let htmlOutput = '';
-        results.forEach(res => {
-            htmlOutput += '<table><thead><tr>';
-            res.columns.forEach(col => {
-                htmlOutput += `<th>${col}</th>`;
-            });
-            htmlOutput += '</tr></thead><tbody>';
+            // MySQL me DESC/DESCRIBE natively support hota hai, par agar koi error aaye to handle ho jayega
+            boolean isResultSet = stmt.execute(query);
 
-            res.values.forEach(row => {
-                htmlOutput += '<tr>';
-                row.forEach(val => {
-                    htmlOutput += `<td>${val !== null ? val : 'NULL'}</td>`;
-                });
-                htmlOutput += '</tr>';
-            });
-            htmlOutput += '</tbody></table><br>';
-        });
+            if (isResultSet) {
+                // Agar query SELECT ya DESC hai (Data return karegi)
+                try (ResultSet rs = stmt.getResultSet()) {
+                    ResultSetMetaData metaData = rs.getMetaData();
+                    int columnCount = metaData.getColumnCount();
 
-        outputBox.innerHTML = htmlOutput;
+                    // Table Columns Set karein
+                    String[] columnNames = new String[columnCount];
+                    for (int i = 1; i <= columnCount; i++) {
+                        columnNames[i - 1] = metaData.getColumnName(i);
+                    }
+                    tableModel.setColumnIdentifiers(columnNames);
+                    tableModel.setRowCount(0); // Purana data clear karein
 
-    } catch (err) {
-        // Error aane par bhi query turant erase ho jayegi aur detailed error popup aayega
-        queryInput.value = '';
-        showPopup("SQL Syntax / Execution Error", err.message, true);
-        outputBox.innerHTML = `<p style="color: #ff5252;"><strong>Error occurred. Check popup for details.</strong></p>`;
+                    int rowCount = 0;
+                    while (rs.next()) {
+                        Object[] rowData = new Object[columnCount];
+                        for (int i = 1; i <= columnCount; i++) {
+                            rowData[i - 1] = rs.getObject(i);
+                        }
+                        tableModel.addRow(rowData);
+                        rowCount++;
+                    }
+
+                    // Detailed Success Popup
+                    JOptionPane.showMessageDialog(this, 
+                        "✔ Query executed successfully!\nTotal rows returned: " + rowCount, 
+                        "Success", JOptionPane.INFORMATION_MESSAGE);
+                }
+            } else {
+                // Agar query CREATE, INSERT, UPDATE, DROP, ALTER ho
+                tableModel.setRowCount(0);
+                tableModel.setColumnCount(0);
+
+                JOptionPane.showMessageDialog(this, 
+                    "✔ Query executed successfully! Database updated.", 
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+            }
+
+        } catch (SQLException ex) {
+            // Detailed Error Popup
+            JOptionPane.showMessageDialog(this, 
+                "SQL Execution Error:\n" + ex.getMessage(), 
+                "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
-});
 
-// Popup Modal Functions
-function showPopup(title, message, isError = false) {
-    const modal = document.getElementById('popup-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const modalMessage = document.getElementById('modal-message');
+    public static void main(String[] args) {
+        // Look and Feel set karna taaki modern UI lage
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {}
 
-    modalTitle.textContent = title;
-    modalTitle.style.color = isError ? '#ff5252' : '#4CAF50';
-    modalMessage.textContent = message;
-
-    modal.style.display = 'flex';
-}
-
-document.getElementById('close-modal').addEventListener('click', () => {
-    document.getElementById('popup-modal').style.display = 'none';
-});
-
-window.onclick = (event) => {
-    const modal = document.getElementById('popup-modal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
+        SwingUtilities.invokeLater(() -> {
+            new SqlConsoleApp().setVisible(true);
+        });
     }
-};
-
-// Clear Editor Button manually
-document.getElementById('clear-btn').addEventListener('click', () => {
-    document.getElementById('sql-input').value = '';
-});
+             }
