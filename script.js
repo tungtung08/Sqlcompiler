@@ -1,13 +1,22 @@
 let db = null;
 
-// Initialize SQL engine
+// Initialize SQL engine & load saved database if exists
 async function initSql() {
     try {
         const SQL = await initSqlJs({
             locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
         });
-        db = new SQL.Database();
-        console.log("Database initialized successfully!");
+
+        // Check if a saved database exists in localStorage
+        const savedDb = localStorage.getItem('sql_db');
+        if (savedDb) {
+            const uInt8Array = Uint8Array.from(JSON.parse(savedDb));
+            db = new SQL.Database(uInt8Array);
+            console.log("Loaded saved database from localStorage!");
+        } else {
+            db = new SQL.Database();
+            console.log("Created new database!");
+        }
     } catch (err) {
         showPopup("Initialization Error", "Failed to load SQL engine: " + err.message, true);
     }
@@ -32,14 +41,18 @@ document.getElementById('run-btn').addEventListener('click', () => {
     }
 
     try {
-        // db.exec() saari A to Z queries handle karta hai (CREATE, INSERT, SELECT, DROP, etc.)
+        // Run SQL query
         const results = db.exec(query);
         
-        // Save to History (LocalStorage)
+        // Save database state to localStorage so tables/data aren't lost
+        const data = db.export();
+        localStorage.setItem('sql_db', JSON.stringify(Array.from(data)));
+
+        // Save query to History
         saveToHistory(query);
 
         if (results.length === 0) {
-            outputBox.innerHTML = `<p style="color: #4CAF50; font-weight: bold;">✔ Query executed successfully! (No tabular data returned, e.g., CREATE/INSERT/UPDATE)</p>`;
+            outputBox.innerHTML = `<p style="color: #4CAF50; font-weight: bold;">✔ Query executed successfully! (Table updated / Data inserted)</p>`;
             return;
         }
 
@@ -65,7 +78,6 @@ document.getElementById('run-btn').addEventListener('click', () => {
         outputBox.innerHTML = htmlOutput;
 
     } catch (err) {
-        // Agar query me koi bhi error hoga toh yeh popup show karega
         showPopup("SQL Syntax / Execution Error", err.message, true);
         outputBox.innerHTML = `<p style="color: #ff5252;"><strong>Error occurred. Check popup for details.</strong></p>`;
     }
