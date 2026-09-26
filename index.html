@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Web SQL Console</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- sql.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar for History -->
+        <div class="sidebar">
+            <h3>Query History</h3>
+            <button id="clear-history" class="btn-danger">Clear History</button>
+            <ul id="history-list">
+                <!-- History items -->
+            </ul>
+        </div>
+
+        <!-- Main Console -->
+        <div class="main-console">
+            <h2>MySQL-like Web Console</h2>
+            <p class="sub-text">Run any SQL query (A to Z: CREATE, INSERT, SELECT, UPDATE, DELETE, etc.)</p>
+            
+            <textarea id="sql-input" placeholder="Type your SQL query here...
+Example:
+CREATE TABLE students (id INT, name TEXT, marks INT);
+INSERT INTO students VALUES (1, 'Rutvik', 95);
+SELECT * FROM students;"></textarea>
+            
+            <div class="button-group">
+                <button id="run-btn" class="btn-success">Run Query</button>
+                <button id="clear-btn" class="btn-secondary">Clear Editor</button>
+            </div>
+            
+            <h3>Output:</h3>
+            <div id="output-box">
+                <p style="color: gray;">Query output or success message will appear here...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error / Notification Popup Modal -->
+    <div id="popup-modal" class="modal">
+        <div class="modal-content">
+            <span id="close-modal">&times;</span>
+            <h3 id="modal-title">Notification</h3>
+            <p id="modal-message"></p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
