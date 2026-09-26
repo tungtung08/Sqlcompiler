@@ -1,159 +1,122 @@
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+let db = null;
+
+// Initialize SQL engine & load saved database if exists
+async function initSql() {
+    try {
+        const SQL = await initSqlJs({
+            locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+        });
+
+        const savedDb = localStorage.getItem('sql_db');
+        if (savedDb) {
+            const uInt8Array = Uint8Array.from(JSON.parse(savedDb));
+            db = new SQL.Database(uInt8Array);
+        } else {
+            db = new SQL.Database();
+        }
+    } catch (err) {
+        showPopup("Initialization Error", "Failed to load SQL engine: " + err.message, true);
+    }
+}
+initSql();
+
+// Run Query Button Event
+document.getElementById('run-btn').addEventListener('click', () => {
+    const queryInput = document.getElementById('sql-input');
+    const query = queryInput.value.trim();
+    const outputBox = document.getElementById('output-box');
+
+    if (!query) {
+        showPopup("Warning", "Please enter an SQL query before running.", true);
+        return;
+    }
+
+    if (!db) {
+        showPopup("Please Wait", "Database is still initializing. Try again in a moment.", true);
+        return;
+    }
+
+    try {
+        // Run SQL query
+        const results = db.exec(query);
+        
+        // Save database state to localStorage so tables/data aren't lost
+        const data = db.export();
+        localStorage.setItem('sql_db', JSON.stringify(Array.from(data)));
+
+        // Query run hote hi textarea instant clear ho jayega
+        queryInput.value = '';
+
+        if (results.length === 0) {
+            // Detailed success popup for DDL/DML queries (CREATE, INSERT, UPDATE, etc.)
+            showPopup("Query Success", "✔ Query executed successfully! Database updated.", false);
+            outputBox.innerHTML = `<p style="color: #4CAF50; font-weight: bold;">✔ Query executed successfully!</p>`;
+            return;
+        }
+
+        // Calculate total rows returned for detailed popup message
+        let totalRows = 0;
+        results.forEach(res => {
+            totalRows += res.values.length;
+        });
+
+        // Detailed success popup for SELECT queries
+        showPopup("Query Success", `✔ Query executed successfully! Total ${totalRows} row(s) returned.`, false);
+
+        // Render Table Output for SELECT queries
+        let htmlOutput = '';
+        results.forEach(res => {
+            htmlOutput += '<table><thead><tr>';
+            res.columns.forEach(col => {
+                htmlOutput += `<th>${col}</th>`;
+            });
+            htmlOutput += '</tr></thead><tbody>';
+
+            res.values.forEach(row => {
+                htmlOutput += '<tr>';
+                row.forEach(val => {
+                    htmlOutput += `<td>${val !== null ? val : 'NULL'}</td>`;
+                });
+                htmlOutput += '</tr>';
+            });
+            htmlOutput += '</tbody></table><br>';
+        });
+
+        outputBox.innerHTML = htmlOutput;
+
+    } catch (err) {
+        // Error aane par bhi query turant erase ho jayegi aur detailed error popup aayega
+        queryInput.value = '';
+        showPopup("SQL Syntax / Execution Error", err.message, true);
+        outputBox.innerHTML = `<p style="color: #ff5252;"><strong>Error occurred. Check popup for details.</strong></p>`;
+    }
+});
+
+// Popup Modal Functions
+function showPopup(title, message, isError = false) {
+    const modal = document.getElementById('popup-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalMessage = document.getElementById('modal-message');
+
+    modalTitle.textContent = title;
+    modalTitle.style.color = isError ? '#ff5252' : '#4CAF50';
+    modalMessage.textContent = message;
+
+    modal.style.display = 'flex';
 }
 
-body {
-    background-color: #121212;
-    color: #e0e0e0;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
+document.getElementById('close-modal').addEventListener('click', () => {
+    document.getElementById('popup-modal').style.display = 'none';
+});
 
-.container {
-    width: 850px;
-    max-width: 95%;
-    height: 90vh;
-    background-color: #1e1e1e;
-    border-radius: 8px;
-    border: 1px solid #333;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-}
+window.onclick = (event) => {
+    const modal = document.getElementById('popup-modal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+};
 
-.main-console {
-    padding: 25px;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.main-console h2 {
-    margin-bottom: 5px;
-    color: #4CAF50;
-}
-
-.sub-text {
-    color: #888;
-    margin-bottom: 15px;
-    font-size: 14px;
-}
-
-textarea {
-    width: 100%;
-    height: 150px;
-    background-color: #252525;
-    color: #fff;
-    border: 1px solid #444;
-    border-radius: 6px;
-    padding: 12px;
-    font-size: 15px;
-    resize: vertical;
-    outline: none;
-}
-
-textarea:focus {
-    border-color: #4CAF50;
-}
-
-.button-group {
-    margin-top: 12px;
-    display: flex;
-    gap: 10px;
-}
-
-button {
-    padding: 10px 20px;
-    font-size: 15px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    border: none;
-}
-
-.btn-success { background-color: #4CAF50; color: white; }
-.btn-success:hover { background-color: #45a049; }
-
-.btn-secondary { background-color: #555; color: white; }
-.btn-secondary:hover { background-color: #666; }
-
-#output-box {
-    margin-top: 12px;
-    background-color: #252525;
-    border: 1px solid #444;
-    border-radius: 6px;
-    padding: 12px;
-    flex: 1;
-    overflow-y: auto;
-}
-
-/* Tables */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-
-th, td {
-    border: 1px solid #444;
-    padding: 8px 12px;
-    text-align: left;
-}
-
-th {
-    background-color: #333;
-    color: #4CAF50;
-}
-
-/* Popup Modal Styling */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.7);
-    justify-content: center;
-    align-items: center;
-}
-
-.modal-content {
-    background-color: #222;
-    padding: 25px;
-    border-radius: 8px;
-    width: 400px;
-    border: 1px solid #444;
-    position: relative;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-}
-
-#close-modal {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    position: absolute;
-    right: 15px;
-    top: 10px;
-}
-
-#close-modal:hover { color: #fff; }
-
-#modal-title {
-    margin-bottom: 10px;
-    font-size: 18px;
-}
-
-#modal-message {
-    font-size: 14px;
-    word-break: break-word;
-    line-height: 1.4;
-}
+// Clear Editor Button manually
+document.getElementById('clear-btn').addEventListener('click', () => {
+    document.getElementById('sql-input').value = '';
+});
